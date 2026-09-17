@@ -5,6 +5,8 @@ from collections.abc import Sequence
 from Lexer import Token, TokenKind
 from ast_nodes import (
     Assignment,
+    BinaryExpr,
+    BinaryOperator,
     Block,
     CallExpr,
     CallStmt,
@@ -298,23 +300,49 @@ class Parser:
         return StringLiteral(val, span=self._span(start, end))
 
     def parse_expression(self) -> Expr:
-        raise NotImplementedError("implemente expression")
+        return self.parse_logical_or()
 
     def parse_logical_or(self) -> Expr:
-        raise NotImplementedError("implemente logical_or")
+        expr = self.parse_logical_and()
+        while tok := self.match(TokenKind.LOGICAL_OR):
+            right = self.parse_logical_and()
+            expr = BinaryExpr(BinaryOperator.LOGICAL_OR, expr, right, span=self._span(expr, right))
+        return expr
 
     def parse_logical_and(self) -> Expr:
-        raise NotImplementedError("implemente logical_and")
+        expr = self.parse_equality()
+        while tok := self.match(TokenKind.LOGICAL_AND):
+            right = self.parse_equality()
+            expr = BinaryExpr(BinaryOperator.LOGICAL_AND, expr, right, span=self._span(expr, right))
+        return expr
 
     def parse_equality(self) -> Expr:
-        raise NotImplementedError("implemente equality")
+        expr = self.parse_relational()
+        while tok := self.match(TokenKind.EQUAL_EQUAL, TokenKind.NOT_EQUAL):
+            op = BinaryOperator.EQUAL if tok.kind == TokenKind.EQUAL_EQUAL else BinaryOperator.NOT_EQUAL
+            right = self.parse_relational()
+            expr = BinaryExpr(op, expr, right, span=self._span(expr, right))
+        return expr
 
     def parse_relational(self) -> Expr:
-        raise NotImplementedError("implemente relational")
+        expr = self.parse_additive()
+        while tok := self.match(TokenKind.LESS, TokenKind.LESS_EQUAL, TokenKind.GREATER, TokenKind.GREATER_EQUAL):
+            if tok.kind == TokenKind.LESS: op = BinaryOperator.LESS
+            elif tok.kind == TokenKind.LESS_EQUAL: op = BinaryOperator.LESS_EQUAL
+            elif tok.kind == TokenKind.GREATER: op = BinaryOperator.GREATER
+            else: op = BinaryOperator.GREATER_EQUAL
+            right = self.parse_additive()
+            expr = BinaryExpr(op, expr, right, span=self._span(expr, right))
+        return expr
 
     def parse_additive(self) -> Expr:
-        raise NotImplementedError("implemente additive")
-
+        expr = self.parse_multiplicative()
+        while tok := self.match(TokenKind.PLUS, TokenKind.MINUS):
+            op = BinaryOperator.ADD if tok.kind == TokenKind.PLUS else BinaryOperator.SUBTRACT
+            right = self.parse_multiplicative()
+            expr = BinaryExpr(op, expr, right, span=self._span(expr, right))
+        return expr
+    
     def parse_multiplicative(self) -> Expr:
         raise NotImplementedError("implemente multiplicative")
 
