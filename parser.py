@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import ast
 from collections.abc import Sequence
 
 from Lexer import Token, TokenKind
@@ -11,15 +11,19 @@ from ast_nodes import (
     Expr,
     FunctionDecl,
     IdentifierExpr,
+    IfStmt,
     Node,
     Parameter,
     PrintItem,
+    PrintStmt,
     Program,
+    ReturnStmt,
     SourceSpan,
     Stmt,
     StringLiteral,
     TypeName,
     VarDecl,
+    WhileStmt,
 )
 
 
@@ -240,22 +244,58 @@ class Parser:
         return VarDecl(var_type, name.lexeme, initializer, span=self._span(start, semi))
 
     def parse_if_statement(self) -> Stmt:
-        raise NotImplementedError("implemente if_statement")
+        start = self.expect(TokenKind.KW_IF)
+        self.expect(TokenKind.LEFT_PAREN)
+        cond = self.parse_expression()
+        self.expect(TokenKind.RIGHT_PAREN)
+        then_b = self.parse_block()
+        else_b = None
+        end_node = then_b
+        if self.match(TokenKind.KW_ELSE):
+            else_b = self.parse_block()
+            end_node = else_b
+        return IfStmt(cond, then_b, else_b, span=self._span(start, end_node))
 
     def parse_while_statement(self) -> Stmt:
-        raise NotImplementedError("implemente while_statement")
+        start = self.expect(TokenKind.KW_WHILE)
+        self.expect(TokenKind.LEFT_PAREN)
+        cond = self.parse_expression()
+        self.expect(TokenKind.RIGHT_PAREN)
+        body = self.parse_block()
+        return WhileStmt(cond, body, span=self._span(start, body))
 
     def parse_return_statement(self) -> Stmt:
-        raise NotImplementedError("implemente return_statement")
+        start = self.expect(TokenKind.KW_RETURN)
+        value = None
+        if not self.check(TokenKind.SEMICOLON):
+            value = self.parse_expression()
+        semi = self.expect(TokenKind.SEMICOLON)
+        return ReturnStmt(value, span=self._span(start, semi))
 
     def parse_print_statement(self) -> Stmt:
-        raise NotImplementedError("implemente print_statement")
+        start = self.expect(TokenKind.KW_PRINT)
+        self.expect(TokenKind.LEFT_PAREN)
+        items = [self.parse_print_item()]
+        while self.match(TokenKind.COMMA):
+            items.append(self.parse_print_item())
+        self.expect(TokenKind.RIGHT_PAREN)
+        semi = self.expect(TokenKind.SEMICOLON)
+        return PrintStmt(items, span=self._span(start, semi))
 
     def parse_print_item(self) -> PrintItem:
-        raise NotImplementedError("implemente print_item")
+        if self.check(TokenKind.STRING_LITERAL):
+            return self.parse_string_literals()
+        return self.parse_expression()
 
     def parse_string_literals(self) -> StringLiteral:
-        raise NotImplementedError("implemente string_literals")
+        start = self.expect(TokenKind.STRING_LITERAL)
+        val = ast.literal_eval(start.lexeme)
+        end = start
+        while self.check(TokenKind.STRING_LITERAL):
+            tok = self.advance()
+            val += ast.literal_eval(tok.lexeme)
+            end = tok
+        return StringLiteral(val, span=self._span(start, end))
 
     def parse_expression(self) -> Expr:
         raise NotImplementedError("implemente expression")
