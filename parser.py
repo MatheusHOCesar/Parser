@@ -8,12 +8,14 @@ from ast_nodes import (
     BinaryExpr,
     BinaryOperator,
     Block,
+    BoolLiteral,
     CallExpr,
     CallStmt,
     Expr,
     FunctionDecl,
     IdentifierExpr,
     IfStmt,
+    IntLiteral,
     Node,
     Parameter,
     PrintItem,
@@ -24,6 +26,8 @@ from ast_nodes import (
     Stmt,
     StringLiteral,
     TypeName,
+    UnaryExpr,
+    UnaryOperator,
     VarDecl,
     WhileStmt,
 )
@@ -344,14 +348,51 @@ class Parser:
         return expr
     
     def parse_multiplicative(self) -> Expr:
-        raise NotImplementedError("implemente multiplicative")
+        expr = self.parse_unary()
+        while tok := self.match(TokenKind.STAR, TokenKind.SLASH, TokenKind.PERCENT):
+            if tok.kind == TokenKind.STAR: op = BinaryOperator.MULTIPLY
+            elif tok.kind == TokenKind.SLASH: op = BinaryOperator.DIVIDE
+            else: op = BinaryOperator.REMAINDER
+            right = self.parse_unary()
+            expr = BinaryExpr(op, expr, right, span=self._span(expr, right))
+        return expr
 
     def parse_unary(self) -> Expr:
-        raise NotImplementedError("implemente unary")
+        if tok := self.match(TokenKind.LOGICAL_NOT, TokenKind.MINUS):
+            op = UnaryOperator.NOT if tok.kind == TokenKind.LOGICAL_NOT else UnaryOperator.NEGATE
+            operand = self.parse_unary()
+            return UnaryExpr(op, operand, span=self._span(tok, operand))
+        return self.parse_primary()
 
     def parse_primary(self) -> Expr:
-        raise NotImplementedError("implemente primary")
+        if tok := self.match(TokenKind.LEFT_PAREN):
+            expr = self.parse_expression()
+            rp = self.expect(TokenKind.RIGHT_PAREN)
+            expr.span = self._span(tok, rp)
+            return expr
+        
+        if tok := self.match(TokenKind.IDENTIFIER):
+            if self.match(TokenKind.LEFT_PAREN):
+                args = self.parse_arguments()
+                rp = self.expect(TokenKind.RIGHT_PAREN)
+                return CallExpr(tok.lexeme, args, span=self._span(tok, rp))
+            return IdentifierExpr(tok.lexeme, span=self._token_span(tok))
+
+        if tok := self.match(TokenKind.INT_LITERAL):
+            return IntLiteral(int(tok.lexeme), span=self._token_span(tok))
+        
+        if tok := self.match(TokenKind.KW_TRUE):
+            return BoolLiteral(True, span=self._token_span(tok))
+        
+        if tok := self.match(TokenKind.KW_FALSE):
+            return BoolLiteral(False, span=self._token_span(tok))
+        
+        raise ParserError(self.peek(), EXPRESSION_START)
 
     def parse_arguments(self) -> list[Expr]:
-        raise NotImplementedError("implemente arguments")
-
+        args = []
+        if self.peek().kind in EXPRESSION_START:
+            args.append(self.parse_expression())
+            while self.match(TokenKind.COMMA):
+                args.append(self.parse_expression())
+        return args
